@@ -8,8 +8,8 @@
 - Poza zakresem: modyfikowanie kodu KSeF, T05, AI_SOTAX, Codex Knowledge Base; produkcyjne wykonanie ich zadań bez osobnego zlecenia.
 
 ## Stan
-- CTM-00: dokumentacja; implementacja, testy CLI/Windows i instalacja **NOT_RUN**.
-- CTM-01: lokalna odczytowa kolejka bez GUI (plan).
+- CTM-00: dokumentacja na `main`.
+- CTM-01: lokalna odczytowa kolejka CLI/SQLite zaimplementowana na gałęzi `feature/ctm-01-local-queue`, 20/20 syntetycznych testów PASS na Linux/Python 3.13.5; Windows i realny Codex CLI **NOT RUN**. Brama CTM-01 nie jest jeszcze pełnym LIVE PASS.
 - CTM-02: Windows Task Scheduler, kontrola okresowa i test blokady (plan).
 - CTM-03: klient System Tray i panel NiceGUI (plan).
 - CTM-04: dedykowana usługa Windows, IPC i recovery (plan).
@@ -24,7 +24,7 @@
 
 ## Testowanie
 - R0: sprawdzenie dokumentacji, linków i `git diff --check`.
-- R1/R2: docelowo wybrane testy Python przez `python -m pytest -q --tb=short`; `ruff check` po dodaniu konfiguracji Ruff.
+- R1/R2: wybrane testy Python przez `python -m pytest -q --tb=short tests/test_core.py`; `ruff check` po dodaniu konfiguracji Ruff.
 - R3: syntetyczne testy procesu, restartu, kolejności i SQLite; realny Codex CLI testowany oddzielnie po potwierdzeniu wersji/kontraktu.
 - R4: rzeczywiste testy Windows lock, System Tray, usługi, IPC, konta usługi, harmonogramu, izolacji, ACL i sekretów.
 - Nie włączaj płatnych GitHub-hosted jobów bez potrzeby. Odróżniaj offline od live i zapisuj `NOT_RUN`.
@@ -36,7 +36,7 @@
 - Sygnał po `enqueue` i kontrola okresowa co domyślnie 300 s; obie ścieżki używają tych samych atomowych zabezpieczeń przed dublem.
 - Zamknięcie tray nie zatrzymuje usługi; pauza zatrzymuje tylko nowe dispatch.
 - Wdrożenie usługi wymaga odrębnej zgody oraz testu tożsamości Codexa/Git. Wyłącz uruchamianie workera z Task Scheduler przed przejściem na usługę.
-- Nic z powyższego nie jest wdrożone w CTM-00.
+- Model usługi/tray nie jest wdrożony w CTM-01; wykonanie CLI pozostaje ręczne. Retry wyłącznie po świadomej decyzji operatora; automatyczny backoff nadal OPEN (patrz `docs/CTM01_IMPLEMENTATION.md`).
 
 ## Git — ograniczenia
 - Zweryfikowany remote GitHub do pracy nad tym repozytorium: `https://github.com/KrzysztofOle/codex-task-manager.git`.
