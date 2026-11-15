@@ -1,6 +1,6 @@
 # Codex Task Manager (CTM)
 
-> **Status: DESIGN / DOCUMENTATION ONLY (2026-11-15).** Repozytorium definiuje projekt aplikacji. Kolejka, harmonogram, panel i usługa Windows **nie zostały jeszcze zaimplementowane ani przetestowane**.
+> **Status CTM-01 (gałąź implementacyjna): OFFLINE VALIDATED / WINDOWS NOT RUN.** Lokalna kolejka CLI/SQLite została zaimplementowana i przeszła 20/20 testów syntetycznych na Linux/Python 3.13.5. Rzeczywisty Codex CLI na Windows 11, blokada ekranu, scheduler, panel i usługa Windows **nie są jeszcze zakwalifikowane / wdrożone**.
 
 **Codex Task Manager** to planowany, lokalny menedżer kolejki i harmonogramu zadań dla OpenAI Codex na Windows 11. Docelowo składa się z usługi Windows pracującej w tle i oddzielnego klienta System Tray przy zegarze. Ma umożliwiać uruchamianie kolejnych prac w wielu repozytoriach Git bez ręcznego wysyłania następnego polecenia, z zachowaniem zależności, priorytetów, audytu i bram bezpieczeństwa.
 
@@ -19,7 +19,7 @@
 
 | Moduł | Przeznaczenie | Etap |
 | --- | --- | --- |
-| SQLite, kolejka DAG, walidator, Codex CLI | Trwały stan, zależności, wykonanie i weryfikacja | CTM-01 |
+| SQLite, kolejka DAG, walidator, Codex CLI | **Zaimplementowane (testy offline PASS, live NOT RUN)** | CTM-01 |
 | Windows Task Scheduler | Przejściowe uruchamianie w tle | CTM-02 |
 | System Tray + NiceGUI | Ikona obok zegara, menu, status, panel i zatwierdzanie | CTM-03 |
 | Usługa Windows | Główny dyspozytor/worker niezależny od zalogowania i panelu | CTM-04 |
@@ -35,7 +35,13 @@ System Tray (sesja użytkownika) -- autoryzowane lokalne IPC --> Windows Service
 
 **Dwa osobne procesy:** zamknięcie ikony lub panelu **nie zatrzymuje** usługi ani bieżących prac. Po dodaniu zadania dyspozytor otrzymuje sygnał i może działać od razu; dodatkowo kontroluje kolejkę **co 5 minut** (300 sekund, konfigurowalne). Pauza blokuje uruchamianie **nowych** zadań, a anulowanie to osobne polecenie.
 
-Usługa Windows zostanie wdrożona po kwalifikacji MVP CLI, harmonogramu i procesu tray; opisane funkcje **nie są jeszcze zaimplementowane**.
+Usługa Windows zostanie wdrożona po kwalifikacji MVP CLI, harmonogramu i procesu tray. Docelowe funkcje usługi i tray **nie są jeszcze zaimplementowane**.
+
+### CTM-01 — dostępne CLI
+
+Zainstaluj lokalnie Python 3.12+, następnie w katalogu repozytorium `py -3.12 -m pip install -e .`. Dostępne polecenia `ctm register`, `ctm enqueue`, `ctm run-once`, `ctm list`, `ctm history`, `ctm depend`, `ctm pause`, `ctm resume`, `ctm recover` i `ctm retry`. Wymagają lokalnych repozytoriów Git; wykonanie przez Codex następuje wyłącznie po jawnym wywołaniu `run-once`, w trybie `--sandbox read-only`.
+
+**Instrukcja, pełne przykłady PowerShell i ograniczenia:** [CTM-01 — Implementation and Verification](docs/CTM01_IMPLEMENTATION.md). Domyślny stan przechowywany jest poza repozytorium (`%LOCALAPPDATA%\\CodexTaskManager` na Windows). Do czasu kwalifikacji nie uruchamiać zadań na środowiskach produkcyjnych.
 
 ## Zasady operacyjne
 
@@ -67,7 +73,7 @@ Usługa Windows zostanie wdrożona po kwalifikacji MVP CLI, harmonogramu i proce
 ## Etap i dalsze kroki
 
 - **CTM-00:** dokumentacja i decyzje.
-- **CTM-01:** kolejka CLI/SQLite, bez interfejsu ani harmonogramu.
+- **CTM-01:** kolejka CLI/SQLite zaimplementowana; testy offline 20/20 PASS, test Windows/real Codex NOT RUN.
 - **CTM-02:** Windows Task Scheduler i test `Win+L`.
 - **CTM-03:** ikona System Tray oraz panel NiceGUI.
 - **CTM-04:** niezależna usługa Windows, autostart, IPC i recovery.
