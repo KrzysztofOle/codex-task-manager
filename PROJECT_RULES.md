@@ -10,11 +10,14 @@
 ## Stan
 - CTM-00: dokumentacja; implementacja, testy CLI/Windows i instalacja **NOT_RUN**.
 - CTM-01: lokalna odczytowa kolejka bez GUI (plan).
-- CTM-02/03/04: harmonogram, GUI, adaptery i wielu wykonawców (plan).
+- CTM-02: Windows Task Scheduler, kontrola okresowa i test blokady (plan).
+- CTM-03: klient System Tray i panel NiceGUI (plan).
+- CTM-04: dedykowana usługa Windows, IPC i recovery (plan).
+- CTM-05: adaptery MCP i wielu wykonawców (plan).
 
 ## Środowisko i struktura docelowa
 - Windows 11 Pro; Python 3.12, standardowe SQLite, PowerShell; Git oraz zainstalowany i uwierzytelniony Codex CLI.
-- NiceGUI dopiero CTM-03. MCP i wykonawcy na wielu komputerach dopiero CTM-04.
+- NiceGUI oraz System Tray dopiero CTM-03. Usługa Windows dopiero CTM-04. MCP i wykonawcy na wielu komputerach dopiero CTM-05.
 - Sugerowany katalog kodu: `C:\VSCode\codex-task-manager`; katalog stanu: `%ProgramData%\CodexTaskManager\`. Oba są propozycją, nie potwierdzoną instalacją.
 - Źródło prawdy dla założeń: `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`.
 - Ścieżki projektów i poświadczenia nie mogą być zaszyte na stałe; instalacja działa z lokalną konfiguracją każdej stacji.
@@ -23,8 +26,17 @@
 - R0: sprawdzenie dokumentacji, linków i `git diff --check`.
 - R1/R2: docelowo wybrane testy Python przez `python -m pytest -q --tb=short`; `ruff check` po dodaniu konfiguracji Ruff.
 - R3: syntetyczne testy procesu, restartu, kolejności i SQLite; realny Codex CLI testowany oddzielnie po potwierdzeniu wersji/kontraktu.
-- R4: rzeczywiste testy zablokowanej sesji Windows, harmonogramu, izolacji zapisów, ACL, sekretów i uprawnień.
+- R4: rzeczywiste testy Windows lock, System Tray, usługi, IPC, konta usługi, harmonogramu, izolacji, ACL i sekretów.
 - Nie włączaj płatnych GitHub-hosted jobów bez potrzeby. Odróżniaj offline od live i zapisuj `NOT_RUN`.
+
+## Wymogi architektury tła
+
+- Główny dispatcher działa docelowo jako usługa w Session 0; aplikacja tray w sesji użytkownika nie przejmuje jego zadań.
+- Komunikacja tray z workerem przez lokalne, uwierzytelnione i autoryzowane IPC (do kwalifikacji Named Pipe + ACL).
+- Sygnał po `enqueue` i kontrola okresowa co domyślnie 300 s; obie ścieżki używają tych samych atomowych zabezpieczeń przed dublem.
+- Zamknięcie tray nie zatrzymuje usługi; pauza zatrzymuje tylko nowe dispatch.
+- Wdrożenie usługi wymaga odrębnej zgody oraz testu tożsamości Codexa/Git. Wyłącz uruchamianie workera z Task Scheduler przed przejściem na usługę.
+- Nic z powyższego nie jest wdrożone w CTM-00.
 
 ## Git — ograniczenia
 - Zweryfikowany remote GitHub do pracy nad tym repozytorium: `https://github.com/KrzysztofOle/codex-task-manager.git`.
