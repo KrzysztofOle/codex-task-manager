@@ -8,6 +8,7 @@
 - **Worker Codex CLI** działa z prawami dedykowanej tożsamości systemowej. Nie dawaj mu więcej uprawnień, niż wymagane.
 - **Dane SQLite** i pliki audytu to dane integralnościowe; procesy użytkownika nie powinny móc ich dowolnie nadpisywać.
 - **Publiczne repozytorium GitHub** nie jest magazynem stanu, poświadczeń ani rzeczywistych logów sesji.
+- **Windows Service (Session 0)** i **System Tray (sesja użytkownika)** są osobnymi podmiotami zaufania; usługa nie może ufać komendom tray bez autoryzacji.
 
 ## Domyślna polityka
 | Obszar | Wartość początkowa |
@@ -37,6 +38,17 @@
 4. **Review:** jeżeli rzeczywisty efekt uboczny jest niepewny, oznacz zadanie `REVIEW` lub `INTERRUPTED`. Nie uruchamiaj go ponownie przez samo wygaśnięcie lease.
 5. **Audit:** kto i kiedy zatwierdził zwiększone uprawnienia, jakie sprawdzenia wykonano, SHA projektu przed i po oraz odwołania do artefaktów.
 
+## Usługa Windows i System Tray — granica zaufania
+
+- Usługa w **Session 0** i tray w sesji użytkownika są oddzielnymi procesami. Usługa nie może wyświetlać GUI ani odblokowywać Windows.
+- Domyślnie dedykowane konto usługi o minimalnych prawach; bez automatycznego LocalSystem. Dostęp Codex/Git testować w rzeczywistym kontekście konta.
+- Tray nie edytuje bazy SQLite. Wszystkie komendy przechodzą przez lokalne IPC z uwierzytelnieniem i autoryzacją (kandydat: Named Pipe + DACL, do weryfikacji).
+- Oddzielne uprawnienia do statusu, enqueue, pause/resume, cancel i zmian polityki. Nieuprawnione wywołania są odrzucane i audytowane.
+- Powiadomienia System Tray nie zawierają promptów, sekretów, danych klientów ani wrażliwych fragmentów logów.
+- Event po enqueue i fallback polling 300 s korzystają z jednego atomowego claim. Przed wdrożeniem usługi wyłączyć Scheduler-worker.
+- Zamknięcie tray nie zatrzymuje workera. Pauza to zakaz **nowego** dispatch, a cancel wymaga odrębnej operacji.
+- Instalacja usługi, zmiana ACL, kont Windows i konfiguracji systemu wymagają osobnej zgody; kod nie nadaje sam sobie uprawnień.
+
 ## Wyjątki
 - Wyjątki muszą mieć ograniczenie: zadanie, repozytorium, czas, zakres działań i sposób weryfikacji.
 - Nie stosuj ogólnych wyjątków „pełny dostęp do wszystkiego”.
@@ -52,6 +64,14 @@
 - Restart po częściowo wykonanej operacji zapisującej -> `REVIEW`, nie auto-retry.
 - Dwa niezależne workerzy -> brak równoległego write do jednego repo.
 - Brak MCP wymaganej tylko dla części zadań -> pozostałe dalej działają.
+
+## Dodatkowe testy bezpieczeństwa
+
+- Nieautoryzowana aplikacja próbuje przez IPC dodać zadanie, anulować pracę lub zmienić politykę → odmowa.
+- Zamknięcie/awaria System Tray → usługa utrzymuje stan i nie wycieka danych.
+- Jednoczesny Scheduler i service → tylko jeden dispatcher może wykonać claim, docelowo drugi trigger zostaje wyłączony.
+- Powiadomienia przy zablokowanym ekranie → brak danych poufnych.
+- Awaria usługi i restart → uzgodnienie skutków ubocznych, brak auto-retry niepewnego zapisu.
 
 ## Backup / rollback
 Przed migracją SQLite: wykonaj spójny backup (SQLite backup API), waliduj schemat i zaplanuj rollback. Przy odtwarzaniu nie wznowić automatycznie osieroconych zadań ze skutkiem zewnętrznym. Kluczy uwierzytelnienia nie obejmuj eksportem wprost. Operacje produkcyjne nie są objęte zwykłym rollbackiem menedżera.
