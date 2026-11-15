@@ -1,6 +1,6 @@
 # Architektura Codex Task Manager
 
-**Status:** plan, CTM-00; żaden z opisywanych modułów nie został uruchomiony.
+**Status:** CTM-01 lokalnie zaimplementowany, 20/20 syntetycznych testów PASS (Linux/Python 3.13.5). Integracja z rzeczywistym Codex CLI na Windows: **NOT RUN**. Model usługa + tray pozostaje projektem CTM-03/04.
 
 ## Model odpowiedzialności
 
@@ -31,7 +31,7 @@ Usługa Windows odpowiada za dispatch, trwałość, wykonanie i walidację. Tray
 6. **Verifier:** predefiniowane bezpieczne testy/warunki, artefakty i status; modelowy komunikat nie jest dowodem.
 7. **Recovery:** uzgadnia PID/heartbeat, status repo i wykonane skutki uboczne; niepewne zadanie otrzymuje `INTERRUPTED` lub `REVIEW`.
 
-## Kontrakt zadania (propozycja, nie format wdrożony)
+## Kontrakt zadania (propozycja formatu YAML na przyszłość; NIE jest wdrożony)
 
 ```yaml
 id: CTM-EXAMPLE-001
@@ -75,7 +75,7 @@ docs/
 examples/           # wyłącznie niesekretne przykłady
 ```
 
-Nie twórz tych katalogów przed CTM-01 tylko dla pozoru gotowej implementacji.
+**Stan implementacji CTM-01:** `src/ctm/core.py` zawiera SQLite store, lease i executor; `src/ctm/cli.py` jest ręcznym interfejsem; `tests/test_core.py` zawiera testy. Nie ma jeszcze planera czasowego, panelu, serwisu ani adapterów MCP. Migracje SQLite mają wersję schematu 1, a modyfikacje schematu wymagają osobnej migracji/backup. Szczegóły w [CTM01_IMPLEMENTATION.md](CTM01_IMPLEMENTATION.md).
 
 ## Hybrydowe budzenie kolejki
 
