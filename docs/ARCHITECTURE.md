@@ -4,34 +4,23 @@
 
 ## Model odpowiedzialności
 
+### Docelowo: dwa oddzielne procesy (CTM-04)
+
 ```text
-Operator / konfiguracja
-          |
-          v
-      Queue API / CLI
-          |
-          v
-    SQLite state store <---- audit events
-          |
-          v
-  Coordinator / dispatcher <---- Windows Task Scheduler (CTM-02)
-          |
-          v
- policy gate + dependency resolver
-          |
-          v
- worker (subprocess Codex CLI)
-          |
-          +---- repo + isolated worktree (w przyszłości dla zapisów)
-          +---- stdout/stderr/JSONL + exit code
-          v
- independent verifier
-          |
-          v
- state transition / next READY task / REVIEW or BLOCKED
+Sesja użytkownika (po logowaniu)              Usługa Windows (Session 0)
+  System Tray + NiceGUI ─── lokalne IPC ──> Dispatcher / policy / leases
+    status, menu, pause  <── events/status ─ SQLite + audit + Codex CLI
 ```
 
-Kontroler musi działać poprawnie bez GUI. NiceGUI (CTM-03) jest opcjonalnym klientem, nie źródłem prawdy o stanie. MCP zapewnia dodatkowy kontekst, ale nie może nadpisywać polityki wykonania.
+Usługa Windows odpowiada za dispatch, trwałość, wykonanie i walidację. Tray to klient UI — **nie** wykonuje prac, nie przechowuje sekretów workera i nie edytuje SQLite. Interfejs może być zamknięty bez zatrzymywania wykonania.
+
+### Etapy migracji
+
+- **CTM-01:** lokalny worker CLI uruchamiany ręcznie.
+- **CTM-02:** Windows Task Scheduler wznawia `run-once`, zachowując mutex i lease.
+- **CTM-03:** osobny proces System Tray + NiceGUI i lokalny kanał sterowania.
+- **CTM-04:** usługa Windows przejmuje dispatch; stary Scheduler-worker wyłączony.
+- **CTM-05:** MCP i worker-y na wielu hostach.
 
 ## Komponenty CTM-01
 1. **Configuration loader:** wersjonowany schemat reguł; lokalny rejestr repo; walidacja realpath i dozwolonych katalogów.
@@ -76,7 +65,7 @@ To przykład formatu do ustalenia w CTM-01, nie gotowy plik konfiguracyjny. `pro
 - P0: 1 worker, tylko zadania odczytowe i syntetyczne fixtures; opcja zwiększenia limitów dopiero po testach współbieżności.
 - Dla późniejszych zadań zapisujących preferuj oddzielny Git worktree i jeden writer na repo. Weryfikuj czystość/worktree oraz nie nadpisuj zmian innych procesów.
 - MCP opcjonalny: jego brak nie blokuje startu, tylko konkretne wymagające go zadanie.
-- Dla wielu komputerów (CTM-04) potrzebne podpisane capability/identity workerów, transport, kolejki leasingowe, a nie bezpośredni dostęp wielu hostów do jednego SQLite przez udział sieciowy.
+- Dla wielu komputerów (CTM-05) potrzebne podpisane capability/identity workerów, transport, kolejki leasingowe, a nie bezpośredni dostęp wielu hostów do jednego SQLite przez udział sieciowy.
 
 ## Proponowany układ kodu
 ```text
@@ -87,6 +76,18 @@ examples/           # wyłącznie niesekretne przykłady
 ```
 
 Nie twórz tych katalogów przed CTM-01 tylko dla pozoru gotowej implementacji.
+
+## Hybrydowe budzenie kolejki
+
+1. `enqueue` najpierw zapisuje zadanie transakcyjnie w SQLite, a następnie wysyła sygnał do workera.
+2. Dispatcher natychmiast sprawdza `READY`, zależności i polityki oraz wykonuje atomowy claim.
+3. Niezależnie odbywa się kontrola okresowa co domyślnie **300 sekund**; zadania planowane mają osobne terminy.
+4. Zdarzeniowy i okresowy dispatch korzystają z tego samego lease; po uśpieniu/restartcie wykonywane jest reconciliation.
+5. `pause` wstrzymuje **nowe** zadania. `cancel` jest odrębnym, kontrolowanym poleceniem.
+
+### IPC i separacja procesów
+
+Preferowany kandydat: **Windows Named Pipe** z ograniczonym DACL i kontrolą tożsamości, do potwierdzenia w CTM-03; alternatywnie uwierzytelniony endpoint loopback z ochroną CSRF. Usługa działa w Session 0 i nie może sterować GUI w sesji użytkownika. Brak tray nie jest awarią usługi. Konto usługi musi posiadać własny, prawidłowo zakwalifikowany dostęp do Codex CLI i Git; nie kopiować tokenów z profilu użytkownika.
 
 ## Znane zależności i zagrożenia
 Autoryzacja Codex CLI w sesji nieinteraktywnej, dostęp do mapowanych dysków, retry przy niepewnym zapisie, kontrola budżetu/tokenów, różnice sandbox Windows i interaktywne aplikacje wymagają osobnych testów. Szczegóły: [Security](SECURITY.md) i [Windows Operations](WINDOWS_OPERATIONS.md).
