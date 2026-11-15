@@ -1,11 +1,11 @@
 # Plan realizacji CTM-00 — CTM-05
 
-**Decyzja projektowa (2026-11-15):** docelowo usługa Windows (worker/dispatcher w tle) i osobny klient System Tray obok zegara, z powiadamianiem po enqueue i rezerwową kontrolą kolejki co 300 s (konfigurowalną). Wszystkie funkcje są na razie planowane; obowiązuje **MVP-first**.
+**Decyzja projektowa (2026-11-15):** docelowo usługa Windows (worker/dispatcher w tle) i osobny klient System Tray obok zegara, z powiadamianiem po enqueue i rezerwową kontrolą kolejki co 300 s. **CTM-01 ma już implementację CLI i 20/20 testów offline PASS, lecz Windows/real Codex NOT RUN**; CTM-02–05 pozostają planowane. Obowiązuje MVP-first.
 
 | Etap | Zakres | Brama odbiorowa |
 | --- | --- | --- |
 | **CTM-00** | Specyfikacja, zasady i dokumentacja | R0: spójność i commit |
-| **CTM-01** | SQLite, zależności, Codex CLI, walidator, audit, retry/recovery; **CLI-only** | A→B end-to-end PASS, awaria bez powielania |
+| **CTM-01** | SQLite, zależności, Codex CLI, walidator, audit, ręczne retry/recovery; **CLI-only** | **OFFLINE PASS (20/20), LIVE WINDOWS NOT RUN; F-07 auto-backoff OPEN** |
 | **CTM-02** | Przejściowy Windows Task Scheduler, kontrola co 5 minut, test `Win+L` | CTM-LOCK-01: CLI przy blokadzie i poprawne recovery |
 | **CTM-03** | Osobna aplikacja System Tray, menu/powiadomienia, panel NiceGUI, lokalne IPC | CTM-TRAY-01: status, pause, autoryzacja, GUI można zamknąć |
 | **CTM-04** | Usługa Windows, automatyczny start, poprawne konto Codex/Git, recovery, migracja z Scheduler | CTM-SERVICE-01: praca po wylogowaniu i starcie bez GUI; nie ma dwóch dispatcherów |
@@ -18,6 +18,13 @@
 4. Zapisywać log, exit code, czas i niezależną weryfikację — modelowy PASS to nie dowód.
 5. Przetestować restart, timeout, zły projekt, brak MCP i podwójne wywołanie dispatchera.
 6. Odróżnić testy syntetyczne od rzeczywistej kwalifikacji CLI. Bez wdrażania tray/usługi.
+
+## Pozostała kwalifikacja CTM-01
+
+- Na Windows 11 (Python 3.12, prawdziwy uwierzytelniony Codex CLI) uruchomić read-only na bezpiecznym repo testowym, zweryfikować JSONL, sandbox, Git fingerprint, logi i ACL.
+- Sprawdzić, czy podłączone narzędzia MCP nie pozwalają wykonywać nieautoryzowanych operacji; sam sandbox read-only nie dowodzi bezpieczeństwa integracji zewnętrznych.
+- Automatyczne retry z backoff (F-07) pozostaje wstrzymane do ustalenia klasyfikacji idempotentnych zadań; obecnie wyłącznie ręczne retry z limitem prób.
+- Szczegóły: [CTM01_IMPLEMENTATION.md](CTM01_IMPLEMENTATION.md).
 
 ## CTM-02 — scheduler przejściowy
 - Uruchomienie `run-once` po starcie / co 5 minut, bez równoległych instancji.
