@@ -1,41 +1,47 @@
-# Plan realizacji CTM-00 — CTM-04
+# Plan realizacji CTM-00 — CTM-05
 
-**Nie oznaczać etapów jako PASS bez potwierdzonych dowodów.** Harmonogram i daty wykonania nie są zobowiązaniem.
+**Decyzja projektowa (2026-11-15):** docelowo usługa Windows (worker/dispatcher w tle) i osobny klient System Tray obok zegara, z powiadamianiem po enqueue i rezerwową kontrolą kolejki co 300 s (konfigurowalną). Wszystkie funkcje są na razie planowane; obowiązuje **MVP-first**.
 
-| Etap | Cel | Wynik | Brama |
-| --- | --- | --- | --- |
-| **CTM-00** | Dokumentacja, decyzje i zasady | README, AGENTS, PROJECT_RULES, docs/ | R0: spójność i linki, zapis w Git |
-| **CTM-01** | Lokalna kolejka MVP | SQLite, CLI, kolejność A->B, retries, walidacja, recovery, syntetyczne testy | P0 end-to-end PASS, brak duplikacji po awarii, brak zapisu bez zgody |
-| **CTM-02** | Harmonogram i odporność Windows | Windows Task Scheduler, pominięte uruchomienia, startup i restart, CTM-LOCK-01 | Test Windows odblokowany / Win+L / restart / brak logowania; potwierdzona polityka zasilania |
-| **CTM-03** | Panel NiceGUI | Kolejka, filtry, logi, zatwierdzenia, kontrola dostępu | Brak bypass polityki API, testy UI, kontrola sesji |
-| **CTM-04** | Adaptery i wiele hostów | MCP, możliwości workerów, kwalifikacja WINTEST/T05, bezpieczna orkiestracja | Test izolacji, tożsamości, rozłączeń i niedostępnych MCP |
+| Etap | Zakres | Brama odbiorowa |
+| --- | --- | --- |
+| **CTM-00** | Specyfikacja, zasady i dokumentacja | R0: spójność i commit |
+| **CTM-01** | SQLite, zależności, Codex CLI, walidator, audit, retry/recovery; **CLI-only** | A→B end-to-end PASS, awaria bez powielania |
+| **CTM-02** | Przejściowy Windows Task Scheduler, kontrola co 5 minut, test `Win+L` | CTM-LOCK-01: CLI przy blokadzie i poprawne recovery |
+| **CTM-03** | Osobna aplikacja System Tray, menu/powiadomienia, panel NiceGUI, lokalne IPC | CTM-TRAY-01: status, pause, autoryzacja, GUI można zamknąć |
+| **CTM-04** | Usługa Windows, automatyczny start, poprawne konto Codex/Git, recovery, migracja z Scheduler | CTM-SERVICE-01: praca po wylogowaniu i starcie bez GUI; nie ma dwóch dispatcherów |
+| **CTM-05** | Projektowe MCP, wielu workerów/komputerów i kwalifikowane środowiska GUI | Bramy izolacji, transportu, tożsamości, utraty połączenia |
 
-## CTM-01 — zadania do wykonania
-1. Potwierdź wersję i sposób odnajdywania Codex CLI oraz ograniczenia sandbox na konkretnym Windows.
-2. Dodaj podstawową strukturę pakietu Python i migrację SQLite.
-3. Zaimplementuj model zadań, walidację konfiguracji, zależności DAG i statusy.
-4. Zaimplementuj scheduler lokalnej kolejki (bez zegara Windows), atomowe claim i audyt.
-5. Uruchamiaj `codex exec` przez kontrolowany subprocess z timeoutem i logami.
-6. Dodaj niezależny walidator i rozróżnienie `PASS`/`PARTIAL`/`FAILED`/`BLOCKED`.
-7. Dodaj recovery po utracie procesu i testy syntetyczne.
-8. Wykonaj zatwierdzony test integracyjny CLI **read-only**, oddzielny od testów offline.
+## CTM-01 — najmniejszy działający przepływ
+1. Sprawdzić realną wersję Codex CLI i lokalne uwierzytelnienie.
+2. Wdrożyć pakiet Python 3.12, SQLite, transakcyjne claim, statusy i zależności DAG.
+3. Uruchamiać `codex exec` w trybie `read-only`, bez niebezpiecznego shell expansion.
+4. Zapisywać log, exit code, czas i niezależną weryfikację — modelowy PASS to nie dowód.
+5. Przetestować restart, timeout, zły projekt, brak MCP i podwójne wywołanie dispatchera.
+6. Odróżnić testy syntetyczne od rzeczywistej kwalifikacji CLI. Bez wdrażania tray/usługi.
 
-## CTM-02 — wymogi uruchamiania
-- Tryb co kilka minut i start po uruchomieniu komputera, bez równoległych instancji kontrolera.
-- Windows lock nie jest Windows sleep; tylko test CLI `Win+L` potwierdzi działanie w docelowej konfiguracji.
-- Tryb `Run whether user is logged on or not` wymaga oddzielnej próby uwierzytelnienia Codex i Git oraz sprawdzenia ścieżek i ACL.
-- Przy niedostępnym środowisku nie obejść blokady GUI: zadanie oznacz jako `BLOCKED`.
+## CTM-02 — scheduler przejściowy
+- Uruchomienie `run-once` po starcie / co 5 minut, bez równoległych instancji.
+- Test zablokowania `Win+L`, odczytu logów i sekwencji A→B; komputer nie może być uśpiony.
+- Brak logowania Codex w sesji nieinteraktywnej: `BLOCKED`, nie kopiować sekretów.
+- Zabezpieczenie mutex/lease pozostaje również przy uruchamianiu z harmonogramu.
 
-## CTM-03 — wymogi interfejsu
-- Sterowanie przez ten sam API/warstwę domenową co CLI.
-- Wyświetlanie przyczyn statusu i dowodów weryfikacyjnych, nie tylko etykiety PASS.
-- Oddzielne zatwierdzanie zadań o zwiększonych uprawnieniach.
-- Domyślnie wyłącznie localhost, brak publikacji panelu w Internecie.
+## CTM-03 — tray i panel
+- Ikona przy zegarze uruchamiana dopiero po zalogowaniu. Menu: kolejka, status, raporty, harmonogram, pauza/wznowienie, ustawienia.
+- NiceGUI uruchamiane na żądanie, domyślnie localhost. Tray nie zapisuje SQLite.
+- Sygnał po nowym zadaniu i lokalne IPC (preferencja Named Pipe z ACL), test autoryzacji.
+- Zamknięcie tray i panelu nie zmienia stanu kolejki. Powiadomienia nie mogą wyświetlać danych poufnych.
 
-## CTM-04 — przyszłość
-- Zewnętrzna wiedza MCP z listą dozwolonych narzędzi i kontrolą zakresu.
-- Workery na różnych komputerach (np. oddzielny WINTEST, TIA i deweloperski), z jawnymi capabilities.
-- Zadania interaktywne Windows (Optima/TIA) nadal wymagają ręcznie zatwierdzonego środowiska sesji; nie maskować tego automatycznym unlockiem.
+## CTM-04 — usługa Windows
+- Oddzielny proces Windows Service działający w Session 0; automatyczny start, restart po awarii, niezależny od tray i zalogowania.
+- Dispatcher reaguje na enqueue i fallback rescan co 300 s; ten sam atomowy mechanizm lease.
+- Weryfikacja tożsamości konta, Codex login, dostępu do repozytoriów i Git, ACL plików SQLite/logów oraz IPC.
+- Przed przełączeniem należy **wyłączyć Scheduler-worker**, sprawdzić brak dubli i mieć procedurę rollback do CTM-02.
+- Instalacja/aktualizacja usługi i zmiany uprawnień Windows tylko po osobnej zgodzie.
 
-## Definicja gotowości do następnego etapu
-Zapisz: wynik, Git SHA, wykonane testy, logi/artefakty (bez sekretów), wersje narzędzi, `NOT_RUN`, znane ryzyka i rollback. Przy `PARTIAL` kontynuuj niezależne, bezpieczne części; nie awansuj zakresu, którego brama nie przeszła.
+## CTM-05 — dalsze integracje
+- MCP per projekt, lista dozwolonych narzędzi; brak opcjonalnego MCP nie blokuje uruchomienia menedżera.
+- Zdalne stacje wymagają własnej tożsamości i kontraktu capabilities, nie współdzielonej bazy SQLite na udziale sieciowym.
+- Optima/TIA/WinCC GUI tylko w odpowiednio kwalifikowanej sesji interaktywnej, nigdy automatycznie przez usługę Session 0.
+
+## Warunki raportowania
+Każdy etap: wynik, testy `PASS/FAIL/NOT_RUN`, SHA, ślady dowodowe, ryzyka i rollback. Nie deklarować LIVE VERIFIED na podstawie testów syntetycznych. Nie zużywać GitHub Actions, jeśli lokalne testy wystarczają.
