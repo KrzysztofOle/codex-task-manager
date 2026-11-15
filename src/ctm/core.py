@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,9 @@ def repo_info(path: str | Path) -> tuple[str, str]:
         remote = git(root, "remote", "get-url", "origin")
     except CTMError:
         remote = ""
+    parsed = urlsplit(remote)
+    if parsed.username or parsed.password:
+        raise CTMError("Git origin contains embedded credentials; remove credentials from remote URL")
     return str(root), remote
 
 
@@ -347,10 +351,17 @@ class Store:
                 row = db.execute("SELECT status FROM tasks WHERE id=?", (task,)).fetchone()
                 if not row or row[0] not in ("RUNNING", "VERIFYING"):
                     raise CTMError("Task not running")
+                active = db.execute("SELECT 1 FROM attempts WHERE id=? AND task_id=? AND status='RUNNING'",
+                                    (attempt, task)).fetchone()
+                if not active:
+                    raise CTMError("Attempt is no longer active; stale result rejected")
                 db.execute("UPDATE tasks SET status='VERIFYING' WHERE id=?", (task,))
                 event(db, task, "VERIFYING")
                 db.execute("UPDATE tasks SET status=?,reason=? WHERE id=?",
                            (status, note[:300], task))
+                if status == "BLOCKED" and result is None:
+                    # Preflight failed before Codex executed: do not spend a real attempt.
+                    db.execute("UPDATE tasks SET attempts=attempts-1 WHERE id=?", (task,))
                 db.execute("""UPDATE attempts SET status=?,finished_at=?,exit_code=?,pid=?,
                     log_stdout=?,log_stderr=?,note=? WHERE id=? AND task_id=?""",
                     (status, utcnow(), result.code if result else None,

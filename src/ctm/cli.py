@@ -12,7 +12,7 @@ from .core import CTMError, Coordinator, Store
 
 
 def default_data_dir() -> Path:
-    base = os.environ.get("PROGRAMDATA") if os.name == "nt" else None
+    base = (os.environ.get("LOCALAPPDATA") or os.environ.get("PROGRAMDATA")) if os.name == "nt" else None
     return Path(base or (Path.home() / ".local" / "share")) / "CodexTaskManager"
 
 

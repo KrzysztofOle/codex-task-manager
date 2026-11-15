@@ -234,3 +234,35 @@ def test_process_runner_fake_executable(env, tmp_path):
     store.enqueue("A", "sample", "read-only")
     result = Coordinator(store, CodexExecutor(str(fake))).run_once()
     assert result["status"] == "PASS"
+
+
+def test_preflight_block_does_not_spend_attempt(env):
+    store, _ = env
+    store.enqueue("A", "sample", "read")
+    assert Coordinator(store, CodexExecutor("codex-not-installed-91237")).run_once()["status"] == "BLOCKED"
+    assert next(t for t in store.list_tasks() if t["id"] == "A")["attempts"] == 0
+    store.retry("A")
+    assert Coordinator(store, FakeRunner()).run_once()["status"] == "PASS"
+
+
+def test_stale_finish_rejected_after_manual_recovery(env):
+    store, _ = env
+    store.enqueue("A", "sample", "read", max_attempts=2)
+    _, attempt = store.claim()
+    assert store.recover() == 1
+    store.retry("A")
+    _, current = store.claim()
+    with pytest.raises(CTMError, match="stale"):
+        store.finish("A", attempt, "PASS", "obsolete result")
+    assert get_state(store, "A") == "RUNNING"
+    store.finish("A", current, "PASS", "synthetic verified")
+    assert get_state(store, "A") == "PASS"
+
+
+def test_embedded_credentials_in_git_remote_rejected(tmp_path):
+    repo = make_repo(tmp_path)
+    subprocess.run(["git", "-C", str(repo), "remote", "add", "origin",
+                    "https://user:secret@example.invalid/private.git"], check=True)
+    store = Store(tmp_path / "private")
+    with pytest.raises(CTMError, match="credentials"):
+        store.register("unsafe", repo)
